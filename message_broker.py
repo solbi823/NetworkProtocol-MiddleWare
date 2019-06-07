@@ -13,17 +13,20 @@ new_match = []		# match buffer : (pub addr, sub_addr)
 
 def alarmToPub(match):
 
+	global match_list
+
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	# connect to publisher
+	print("get here")
 	s.connect(match[0])
+	print("connect success")
+
 	# send match subscriber's address
 	data_string = pickle.dumps(match[1])
 	s.send(data_string)
 	print ("sent match subscriber address")
 
-	msg = s.recv(1024).decode('utf-8')
-	print (msg)
-
+	new_match.remove(match)
 
 
 
@@ -87,6 +90,11 @@ def recvTopicThread(sock):
 		else:
 			print("find matching one")
 
+	# alarm to matched publishers
+	print(len(new_match))
+	for match in new_match:
+		alarmer = threading.Thread(target = alarmToPub, args = (match, ))
+		alarmer.start()
 
 
 
@@ -94,6 +102,7 @@ if __name__ == "__main__":
 
 
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+		print("내 주소: ", str(broker_addr))
 		s.bind(broker_addr)
 		s.listen()
 
@@ -102,12 +111,4 @@ if __name__ == "__main__":
 			print(str(addr), "에서 접속")
 			topic_receiver = threading.Thread(target = recvTopicThread, args = (conn,))
 			topic_receiver.start()
-
-			for match in new_match:
-				alarmer = threading.Thread(target = alarmToPub, args = (match, ))
-				alarmer.start()
-
-			new_match = []
-
-
 

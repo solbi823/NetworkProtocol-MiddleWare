@@ -6,8 +6,9 @@ import socket, pickle
 import enum
 import sys
 import threading
+import random
 
-data_port = 36007
+data_port = random.randint(33000, 60000)
 my_addr = ("localhost", data_port)
 
 class Match:
@@ -24,13 +25,12 @@ class Match:
 
 match_list = []
 
-def sendSubRegRequest(addr, topic):
+def sendSubRegRequest(addr, topic, file_path):
 
 	print("try send register request to subscriber ", str(addr[1]))
-	data_port += 1
-	my_addr = ("localhost", data_port)
 
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.settimeout(2)
 	s.connect(addr)
 	data_string = pickle.dumps(topic)
 
@@ -47,7 +47,16 @@ def sendSubRegRequest(addr, topic):
 			break
 
 	print("now sending file")
+	file = open(file_path,'rb')
+	l = file.read(1024)
+	while l:
+		s.send(l)
+		l = file.read(1024)
 
+	file.close()
+
+	print("file transfer finish")
+	s.close()
 
 
 def pub_mode(file_path):
@@ -76,30 +85,30 @@ def pub_mode(file_path):
 		return
 
 	# topic 등록이 끝났다면 match report 를 기다린다. 
-	data_port += 1
-	my_addr = ("localhost", data_port)
+
 	listen_s =  socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	listen_s.bind(my_addr)
-	listen_s.listen(1)
-	conn, _ = listen_s.accept()
+	print("bind success")
 
 	while True:
-		match = conn.recv(1024)
+
+		listen_s.listen()
+		print("listen success")
+		conn, _ = listen_s.accept()
+
+		match = conn.recv(128)
 		match_addr = pickle.loads(match)
-		print("get matched")
-		print(match_addr[1])
+		print("get matched with", str(match_addr[1]))
 		match_list.append(match_addr)
 
-		sub_reg_requester = threading.Thread(target = sendSubRegRequest, args = (match_addr, topic, ))
+		sub_reg_requester = threading.Thread(target = sendSubRegRequest, args = (match_addr, topic, file_path))
 		sub_reg_requester.start()
 
+		conn.close()
 
 
 
-
-
-
-def sub_mode():
+def sub_mode(file_path):
 
 	global data_port, my_addr, broker_addr
 
@@ -126,12 +135,10 @@ def sub_mode():
 	ok_msg = "ok"
 	fail_msg = "fail"
 
-	data_port += 1
-	my_addr = ("localhost", data_port)
-
 	listen_s =  socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	listen_s.bind(my_addr)
 	listen_s.listen(1)
+	print("listening...")
 	conn, _ = listen_s.accept()
 
 	while True:
@@ -149,6 +156,14 @@ def sub_mode():
 
 	# 이제 파일 데이터가 오기를 기다립니다.
 	print("waiting for file data")
+	file = open(file_path,'wb')
+	l = conn.recv(1024)
+	while l:
+		file.write(l)
+		l = conn.recv(1024)
+
+	print("file arrived")
+	conn.close()
 
 
 
@@ -163,7 +178,7 @@ if __name__ == "__main__":
 			pub_mode(sys.argv[1])
 
 		elif mode == 2:
-			sub_mode()
+			sub_mode(sys.argv[1])
 
 		else:
 			print("wrong input\n")

@@ -2,7 +2,7 @@
 
 import enum
 
-host = "127.0.0.1"
+host = "localhost"
 port = 36007
 broker_addr = (host, port)
 
