@@ -6,14 +6,16 @@ import socket, pickle
 import enum
 import sys
 import threading
+import time
 
 sub_list = []
 pub_list = []
 new_match = []		# match buffer : (pub addr, sub_addr)
 
+
 def alarmToPub(match):
 
-	global match_list
+	global new_match
 
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	# connect to publisher
@@ -27,8 +29,6 @@ def alarmToPub(match):
 	print ("sent match subscriber address")
 
 	new_match.remove(match)
-
-
 
 def recvTopicThread(sock):
 
@@ -55,47 +55,62 @@ def recvTopicThread(sock):
 
 	# send ok message to pub or sub
 	sock.send(ok_msg.encode('utf-8'))
-	sock.close()
 
-	# find match
+
+	# 새로 들어온 topic 으로 인해 생기는 match를 찾습니다. 
 	if topic_type == TopicType.PUBLISH:
 
 		pub_list.append(data_var)
 
-		tmp_sub_list = []
 		for sub in sub_list:
 			if sub.topic_name == data_var.topic_name:
 				new_match.append((data_var.addr, sub.addr))
-			else:
-				tmp_sub_list.append(sub)
-
-		sub_list = tmp_sub_list
 
 		print("pub list #: ", str(len(pub_list)))
 		print("match #: ", str(len(new_match)))
 
 	else:
 
-		flag = False
+		sub_list.append(data_var)
+
 		for pub in pub_list:
 			if pub.topic_name == data_var.topic_name:
 				new_match.append((pub.addr, data_var.addr))
-				flag = True
+				print("find matching one")
 				break
 				
-		if flag == False:
-			sub_list.append(data_var)
-			print("waiting sub list #: ", str(len(sub_list)))
+		print("sub list #: ", str(len(sub_list)))
 
-		else:
-			print("find matching one")
 
-	# alarm to matched publishers
+	# 매치된 publisher들에게 알려주는 스레드를 생성합니다. 
 	print(len(new_match))
 	for match in new_match:
 		alarmer = threading.Thread(target = alarmToPub, args = (match, ))
 		alarmer.start()
 
+	# keep alive 관리
+	sock.settimeout(3)
+	while True:
+
+		time.sleep(10)
+
+		print("keep alive? sending topic...")
+		sock.send(data)
+
+		try:
+			msg = sock.recv(1024).decode('utf-8')
+		except socket.timeout:
+			print("timeout. send fail.")
+			break
+
+		print(msg)
+		if msg != "ok":
+			break
+
+	if topic_type == TopicType.PUBLISH:
+		pub_list.remove(data_var)
+	else:
+		sub_list.remove(data_var)
 
 
 if __name__ == "__main__":

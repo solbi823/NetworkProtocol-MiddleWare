@@ -6,12 +6,6 @@ host = "localhost"
 port = 36007
 broker_addr = (host, port)
 
-class Format:
-	def __init__(self, file_name, file_size, value):
-		self.file_name = file_name
-		self.file_size = file_size
-		self.value = value
-
 class TopicType(enum.Enum):
 	PUBLISH = 0
 	SUBSCRIBE = 1
